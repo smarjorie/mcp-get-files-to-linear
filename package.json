@@ -4,9 +4,8 @@
   "description": "Servidor MCP de ingestao/consulta: Notion, Google Docs e Linear",
   "main": "api/mcp.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "dev": "vercel dev"
+  "typecheck": "tsc --noEmit -p tsconfig.json",
+  "dev": "vercel dev"
   },
   "engines": {
     "node": ">=18.0.0"
