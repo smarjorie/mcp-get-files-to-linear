@@ -2,7 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { notionSearch, notionGetPage } from "./connectors/notion.js";
 import { gdocsSearch, gdocsGetDocument } from "./connectors/googleDocs.js";
-import { linearSearchIssues, linearGetIssue, linearListTeams } from "./connectors/linear.js";
+import {
+  linearSearchIssues,
+  linearGetIssue,
+  linearListTeams,
+  linearCreateIssue,
+} from "./connectors/linear.js";
 
 function toResult(data: unknown) {
   return {
@@ -154,6 +159,27 @@ export function createIngestionServer(): McpServer {
     async () => {
       try {
         return toResult(await linearListTeams());
+      } catch (err) {
+        return toError(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "linear_create_issue",
+    {
+      title: "Criar issue no Linear",
+      description:
+        "Cria uma nova issue em um time do Linear. Aceita o id (uuid) ou a key do time (ex: BLI2).",
+      inputSchema: {
+        teamId: z.string().describe("ID ou key do time (ex: BLI2)"),
+        title: z.string().describe("Titulo da issue"),
+        description: z.string().optional().describe("Descricao/corpo da issue (markdown)"),
+      },
+    },
+    async ({ teamId, title, description }) => {
+      try {
+        return toResult(await linearCreateIssue(teamId, title, description));
       } catch (err) {
         return toError(err);
       }
