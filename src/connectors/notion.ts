@@ -95,6 +95,17 @@ function extractTitle(item: any): string {
 function blockToText(block: any): string {
   const type = block.type;
   const value = block[type];
+
+  // Blocos de sub-pagina e database linkada nao tem rich_text: tratamos a parte.
+  if (type === "child_page") {
+    const pageTitle = value?.title || "(sub-pagina sem titulo)";
+    return `- [pagina] ${pageTitle} (id: ${block.id})`;
+  }
+  if (type === "child_database") {
+    const dbTitle = value?.title || "(database sem titulo)";
+    return `- [database] ${dbTitle} (id: ${block.id})`;
+  }
+
   if (!value || !Array.isArray(value.rich_text)) return "";
   const text = value.rich_text.map((t: any) => t.plain_text).join("");
   if (!text) return "";

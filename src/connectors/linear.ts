@@ -63,3 +63,44 @@ export async function linearListTeams() {
   const teams = await linear.teams();
   return teams.nodes.map((t) => ({ id: t.id, name: t.name, key: t.key }));
 }
+
+/**
+ * Cria uma nova issue em um time do Linear.
+ * teamId pode ser o id (uuid) ou a key do time (ex: "BLI2") - resolvemos a key para id automaticamente.
+ */
+export async function linearCreateIssue(
+  teamId: string,
+  title: string,
+  description?: string
+) {
+  const linear = getClient();
+
+  let resolvedTeamId = teamId;
+  // Se parece uma "key" curta (ex: BLI2) em vez de um uuid, resolve para o id real.
+  if (!/^[0-9a-f-]{36}$/i.test(teamId)) {
+    const teams = await linear.teams();
+    const match = teams.nodes.find(
+      (t) => t.key.toLowerCase() === teamId.toLowerCase()
+    );
+    if (!match) {
+      throw new Error(`Time com key "${teamId}" nao encontrado no workspace.`);
+    }
+    resolvedTeamId = match.id;
+  }
+
+  const result = await linear.createIssue({
+    teamId: resolvedTeamId,
+    title,
+    description,
+  });
+
+  const issue = await result.issue;
+
+  return {
+    success: result.success,
+    id: issue?.id,
+    identifier: issue?.identifier,
+    title: issue?.title,
+    url: issue?.url,
+  };
+}
