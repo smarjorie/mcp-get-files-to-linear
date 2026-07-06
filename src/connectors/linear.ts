@@ -64,34 +64,39 @@ export async function linearListTeams() {
   return teams.nodes.map((t) => ({ id: t.id, name: t.name, key: t.key }));
 }
 
+async function resolveTeamId(linear: LinearClient, teamId: string): Promise<string> {
+  if (/^[0-9a-f-]{36}$/i.test(teamId)) return teamId;
+
+  const teams = await linear.teams();
+  const match = teams.nodes.find((t) => t.key.toLowerCase() === teamId.toLowerCase());
+  if (!match) {
+    throw new Error(`Time com key "${teamId}" nao encontrado no workspace.`);
+  }
+  return match.id;
+}
+
 /**
  * Cria uma nova issue em um time do Linear.
  * teamId pode ser o id (uuid) ou a key do time (ex: "BLI2") - resolvemos a key para id automaticamente.
+ * projectId (opcional): coloca a issue dentro de um projeto existente.
+ * parentId (opcional): cria a issue como sub-issue de outra issue (id da issue pai).
  */
 export async function linearCreateIssue(
   teamId: string,
   title: string,
-  description?: string
+  description?: string,
+  projectId?: string,
+  parentId?: string
 ) {
   const linear = getClient();
-
-  let resolvedTeamId = teamId;
-  // Se parece uma "key" curta (ex: BLI2) em vez de um uuid, resolve para o id real.
-  if (!/^[0-9a-f-]{36}$/i.test(teamId)) {
-    const teams = await linear.teams();
-    const match = teams.nodes.find(
-      (t) => t.key.toLowerCase() === teamId.toLowerCase()
-    );
-    if (!match) {
-      throw new Error(`Time com key "${teamId}" nao encontrado no workspace.`);
-    }
-    resolvedTeamId = match.id;
-  }
+  const resolvedTeamId = await resolveTeamId(linear, teamId);
 
   const result = await linear.createIssue({
     teamId: resolvedTeamId,
     title,
     description,
+    projectId,
+    parentId,
   });
 
   const issue = await result.issue;
@@ -102,5 +107,33 @@ export async function linearCreateIssue(
     identifier: issue?.identifier,
     title: issue?.title,
     url: issue?.url,
+  };
+}
+
+/**
+ * Cria um novo projeto do Linear associado a um ou mais times.
+ * teamId pode ser o id (uuid) ou a key do time (ex: "BLI2").
+ */
+export async function linearCreateProject(
+  teamId: string,
+  name: string,
+  description?: string
+) {
+  const linear = getClient();
+  const resolvedTeamId = await resolveTeamId(linear, teamId);
+
+  const result = await linear.createProject({
+    teamIds: [resolvedTeamId],
+    name,
+    description,
+  });
+
+  const project = await result.project;
+
+  return {
+    success: result.success,
+    id: project?.id,
+    name: project?.name,
+    url: project?.url,
   };
 }

@@ -73,6 +73,82 @@ export async function notionGetPage(pageId: string, maxBlocks = 200) {
   };
 }
 
+/**
+ * Le todas as linhas (paginas) de um database do Notion, extraindo os valores
+ * de cada propriedade (select, multi_select, status, rich_text, title, etc)
+ * num formato simples de {nome_da_coluna: valor}.
+ */
+export async function notionQueryDatabase(databaseId: string, pageSize = 50) {
+  const notion = getClient();
+
+  let cursor: string | undefined = undefined;
+  const rows: any[] = [];
+
+  do {
+    const response: any = await notion.databases.query({
+      database_id: databaseId,
+      start_cursor: cursor,
+      page_size: Math.min(pageSize, 100),
+    });
+
+    for (const page of response.results) {
+      rows.push({
+        id: page.id,
+        url: page.url,
+        title: extractTitle(page),
+        properties: extractProperties(page.properties),
+      });
+    }
+
+    cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
+  } while (cursor && rows.length < pageSize);
+
+  return rows;
+}
+
+function extractProperties(properties: Record<string, any>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const [name, prop] of Object.entries(properties ?? {})) {
+    result[name] = extractPropertyValue(prop as any);
+  }
+
+  return result;
+}
+
+function extractPropertyValue(prop: any): unknown {
+  switch (prop?.type) {
+    case "title":
+      return (prop.title ?? []).map((t: any) => t.plain_text).join("");
+    case "rich_text":
+      return (prop.rich_text ?? []).map((t: any) => t.plain_text).join("");
+    case "select":
+      return prop.select?.name ?? null;
+    case "multi_select":
+      return (prop.multi_select ?? []).map((s: any) => s.name);
+    case "status":
+      return prop.status?.name ?? null;
+    case "people":
+      return (prop.people ?? []).map((p: any) => p.name ?? p.id);
+    case "date":
+      return prop.date?.start ?? null;
+    case "checkbox":
+      return prop.checkbox ?? false;
+    case "number":
+      return prop.number ?? null;
+    case "url":
+      return prop.url ?? null;
+    case "email":
+      return prop.email ?? null;
+    case "phone_number":
+      return prop.phone_number ?? null;
+    case "formula":
+      return extractPropertyValue({ ...prop.formula, type: prop.formula?.type });
+    default:
+      return null;
+  }
+}
+
 function extractTitle(item: any): string {
   try {
     if (item.properties) {
