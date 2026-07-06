@@ -1,12 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { notionSearch, notionGetPage } from "./connectors/notion.js";
+import { notionSearch, notionGetPage, notionQueryDatabase } from "./connectors/notion.js";
 import { gdocsSearch, gdocsGetDocument } from "./connectors/googleDocs.js";
 import {
   linearSearchIssues,
   linearGetIssue,
   linearListTeams,
   linearCreateIssue,
+  linearCreateProject,
 } from "./connectors/linear.js";
 
 function toResult(data: unknown) {
@@ -66,6 +67,26 @@ export function createIngestionServer(): McpServer {
     async ({ pageId }) => {
       try {
         return toResult(await notionGetPage(pageId));
+      } catch (err) {
+        return toError(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "notion_query_database",
+    {
+      title: "Consultar database do Notion",
+      description:
+        "Le todas as linhas de um database do Notion, retornando os campos de cada uma (select, status, texto, pessoas, data, etc).",
+      inputSchema: {
+        databaseId: z.string().describe("ID do database do Notion"),
+        pageSize: z.number().int().min(1).max(100).optional(),
+      },
+    },
+    async ({ databaseId, pageSize }) => {
+      try {
+        return toResult(await notionQueryDatabase(databaseId, pageSize));
       } catch (err) {
         return toError(err);
       }
@@ -170,16 +191,39 @@ export function createIngestionServer(): McpServer {
     {
       title: "Criar issue no Linear",
       description:
-        "Cria uma nova issue em um time do Linear. Aceita o id (uuid) ou a key do time (ex: BLI2).",
+        "Cria uma nova issue em um time do Linear. Aceita o id (uuid) ou a key do time (ex: BLI2). Opcionalmente coloca a issue dentro de um projeto (projectId) e/ou como sub-issue de outra (parentId).",
       inputSchema: {
         teamId: z.string().describe("ID ou key do time (ex: BLI2)"),
         title: z.string().describe("Titulo da issue"),
         description: z.string().optional().describe("Descricao/corpo da issue (markdown)"),
+        projectId: z.string().optional().describe("ID do projeto Linear (opcional, para agrupar a issue dentro de um projeto)"),
+        parentId: z.string().optional().describe("ID da issue pai (opcional, para criar esta issue como sub-issue)"),
       },
     },
-    async ({ teamId, title, description }) => {
+    async ({ teamId, title, description, projectId, parentId }) => {
       try {
-        return toResult(await linearCreateIssue(teamId, title, description));
+        return toResult(await linearCreateIssue(teamId, title, description, projectId, parentId));
+      } catch (err) {
+        return toError(err);
+      }
+    }
+  );
+
+  server.registerTool(
+    "linear_create_project",
+    {
+      title: "Criar projeto no Linear",
+      description:
+        "Cria um novo projeto associado a um time do Linear. Aceita o id (uuid) ou a key do time (ex: BLI2). Retorna o projectId, usado depois em linear_create_issue.",
+      inputSchema: {
+        teamId: z.string().describe("ID ou key do time (ex: BLI2)"),
+        name: z.string().describe("Nome do projeto"),
+        description: z.string().optional().describe("Descricao do projeto"),
+      },
+    },
+    async ({ teamId, name, description }) => {
+      try {
+        return toResult(await linearCreateProject(teamId, name, description));
       } catch (err) {
         return toError(err);
       }
